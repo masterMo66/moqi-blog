@@ -29,9 +29,17 @@ jobs:
         with:
           node-version: 24
 
+      - name: Configure Obsidian deploy key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.OBSIDIAN_DEPLOY_KEY }}" > ~/.ssh/obsidian_deploy_key
+          chmod 600 ~/.ssh/obsidian_deploy_key
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          printf 'Host github.com\n  IdentityFile ~/.ssh/obsidian_deploy_key\n  IdentitiesOnly yes\n' >> ~/.ssh/config
+
       - name: Sync Obsidian and build
         env:
-          OBSIDIAN_REPO: https://x-access-token:${{ secrets.OBSIDIAN_REPO_TOKEN }}@github.com/masterMo66/obsidian-vault.git
+          OBSIDIAN_REPO: git@github.com:masterMo66/obsidian-vault.git
           OBSIDIAN_BRANCH: main
           OBSIDIAN_INCLUDE_DIRS: 技术,哲思,金融,商业机会
         run: npm run build
