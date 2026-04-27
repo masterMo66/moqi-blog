@@ -1,0 +1,14 @@
+{
+  "name": "moqi-blog",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npm run build && python3 -m http.server 4321 --directory dist",
+    "build": "npm run sync:obsidian && node scripts/build.mjs",
+    "build:local": "node scripts/build.mjs",
+    "preview": "python3 -m http.server 4321 --directory dist",
+    "sync:obsidian": "node scripts/sync-obsidian.mjs",
+    "sync:obsidian:local": "OBSIDIAN_LOCAL_DIR='/Users/moqi/Documents/Obsidian Vault' OBSIDIAN_INCLUDE_DIRS='技术,哲思,金融,商业机会' node scripts/sync-obsidian.mjs"
+  }
+}
