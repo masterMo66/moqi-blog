@@ -295,9 +295,11 @@ function postPage(post) {
         <button class="lightbox-close" type="button" aria-label="关闭图片预览" data-lightbox-close>×</button>
         <img alt="" data-lightbox-image />
       </div>
+      <button class="back-to-top" type="button" aria-label="回到顶部" title="回到顶部" data-back-to-top><span aria-hidden="true"></span></button>
       <script>
         const postLayout = document.querySelector(".post-layout");
         const tocToggle = document.querySelector("[data-toc-toggle]");
+        const backToTop = document.querySelector("[data-back-to-top]");
         const tocLinks = [...document.querySelectorAll("[data-toc-link]")];
         const sections = tocLinks
           .map((link) => document.getElementById(link.dataset.tocLink))
@@ -319,9 +321,20 @@ function postPage(post) {
           }
           if (active) setActiveToc(active);
         };
-        window.addEventListener("scroll", syncToc, { passive: true });
-        window.addEventListener("resize", syncToc);
-        syncToc();
+        const syncBackToTop = () => {
+          const visibleAt = Math.max(420, window.innerHeight * 0.7);
+          backToTop?.classList.toggle("is-visible", window.scrollY > visibleAt);
+        };
+        const syncScrollState = () => {
+          syncToc();
+          syncBackToTop();
+        };
+        window.addEventListener("scroll", syncScrollState, { passive: true });
+        window.addEventListener("resize", syncScrollState);
+        backToTop?.addEventListener("click", () => {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+        syncScrollState();
 
         const lightbox = document.querySelector("[data-lightbox]");
         const lightboxImage = document.querySelector("[data-lightbox-image]");
