@@ -224,7 +224,8 @@ export function renderMarkdown(markdown) {
     inCode = false;
   };
 
-  for (const line of lines) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
     const fence = line.match(/^```(\w*)/);
     if (fence) {
       if (inCode) {
@@ -250,6 +251,34 @@ export function renderMarkdown(markdown) {
       flushList();
       flushOrderedList();
       flushQuote();
+      continue;
+    }
+
+    if (/^\s{0,3}(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+      flushParagraph();
+      flushList();
+      flushOrderedList();
+      flushQuote();
+      html.push("<hr />");
+      continue;
+    }
+
+    if (isMarkdownTableStart(line, lines[index + 1])) {
+      flushParagraph();
+      flushList();
+      flushOrderedList();
+      flushQuote();
+
+      const tableLines = [line, lines[index + 1]];
+      index += 2;
+
+      while (index < lines.length && isMarkdownTableRow(lines[index])) {
+        tableLines.push(lines[index]);
+        index += 1;
+      }
+
+      index -= 1;
+      html.push(renderMarkdownTable(tableLines));
       continue;
     }
 
@@ -286,7 +315,7 @@ export function renderMarkdown(markdown) {
       continue;
     }
 
-    const bullet = line.match(/^[-*]\s+(.+)$/);
+    const bullet = line.match(/^\s*[-*+]\s+(.+)$/);
     if (bullet) {
       flushParagraph();
       flushOrderedList();
@@ -295,7 +324,7 @@ export function renderMarkdown(markdown) {
       continue;
     }
 
-    const orderedBullet = line.match(/^\d+\.\s+(.+)$/);
+    const orderedBullet = line.match(/^\s*\d+[.)]\s+(.+)$/);
     if (orderedBullet) {
       flushParagraph();
       flushList();
@@ -317,8 +346,84 @@ export function renderMarkdown(markdown) {
   return { html: html.join("\n"), headings };
 }
 
+function isMarkdownTableStart(line, nextLine) {
+  return isMarkdownTableRow(line) && isMarkdownTableSeparator(nextLine);
+}
+
+function isMarkdownTableRow(line = "") {
+  const trimmed = line.trim();
+  if (!trimmed || !trimmed.includes("|")) return false;
+  return splitMarkdownTableRow(trimmed).length > 1;
+}
+
+function isMarkdownTableSeparator(line = "") {
+  if (!isMarkdownTableRow(line)) return false;
+  return splitMarkdownTableRow(line).every((cell) => /^:?-{3,}:?$/.test(cell.trim()));
+}
+
+function splitMarkdownTableRow(line) {
+  const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+  const cells = [];
+  let cell = "";
+  let escaped = false;
+
+  for (const char of trimmed) {
+    if (escaped) {
+      cell += char;
+      escaped = false;
+    } else if (char === "\\") {
+      escaped = true;
+    } else if (char === "|") {
+      cells.push(cell.trim());
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+
+  if (escaped) cell += "\\";
+  cells.push(cell.trim());
+  return cells;
+}
+
+function tableAlignment(separatorCell) {
+  const value = separatorCell.trim();
+  if (value.startsWith(":") && value.endsWith(":")) return "center";
+  if (value.endsWith(":")) return "right";
+  if (value.startsWith(":")) return "left";
+  return "";
+}
+
+function renderMarkdownTable(tableLines) {
+  const headers = splitMarkdownTableRow(tableLines[0]);
+  const alignments = splitMarkdownTableRow(tableLines[1]).map(tableAlignment);
+  const columnCount = headers.length;
+  const rows = tableLines.slice(2).map((line) => normalizeTableCells(splitMarkdownTableRow(line), columnCount));
+  const alignmentAttribute = (index) =>
+    alignments[index] ? ` style="text-align: ${alignments[index]}"` : "";
+  const thead = headers
+    .map((cell, index) => `<th${alignmentAttribute(index)}>${inlineMarkdown(cell)}</th>`)
+    .join("");
+  const tbody = rows
+    .map(
+      (row) =>
+        `<tr>${row
+          .map((cell, index) => `<td${alignmentAttribute(index)}>${inlineMarkdown(cell)}</td>`)
+          .join("")}</tr>`,
+    )
+    .join("");
+
+  return `<table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table>`;
+}
+
+function normalizeTableCells(cells, columnCount) {
+  if (cells.length > columnCount) return cells.slice(0, columnCount);
+  return [...cells, ...Array.from({ length: columnCount - cells.length }, () => "")];
+}
+
 function inlineMarkdown(value) {
   return escapeHtml(value)
+    .replace(/&lt;br\s*\/?&gt;/gi, "<br />")
     .replace(
       /!\[([^\]]*)\]\(([^)]+)\)/g,
       '<button class="image-zoom" type="button" data-image-zoom="$2" data-image-alt="$1" aria-label="放大图片"><img src="$2" alt="$1" loading="lazy" /></button>',

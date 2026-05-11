@@ -32,6 +32,7 @@ const destination = path.resolve(
 );
 const cacheDir = path.resolve(root, ".cache/obsidian-vault");
 const assetDestination = path.resolve(root, "public/obsidian-assets");
+const sharedAssetDirectories = ["assets"];
 
 const ignoredDirs = new Set([
   ".git",
@@ -65,14 +66,53 @@ function run(command, args, cwd = root) {
   execFileSync(command, args, { cwd, stdio: "inherit" });
 }
 
-function transformObsidianLinks(content, articleDirectory) {
+function isExternalOrAbsoluteUrl(target) {
+  return /^(?:[a-z][a-z0-9+.-]*:|\/)/i.test(target);
+}
+
+function existingVaultRelativePath(sourceRoot, candidates) {
+  for (const candidate of candidates) {
+    const normalized = candidate.replace(/^\/+/, "");
+    if (!normalized) continue;
+    if (existsSync(path.join(sourceRoot, ...normalized.split("/")))) {
+      return normalized;
+    }
+  }
+  return null;
+}
+
+function resolveAssetPath(target, articleDirectory, sourceRoot) {
+  const cleanTarget = decodeURI(target)
+    .trim()
+    .replace(/^<|>$/g, "")
+    .replace(/\\/g, "/")
+    .replace(/^\/+/, "");
+
+  if (!cleanTarget || isExternalOrAbsoluteUrl(cleanTarget)) {
+    return target;
+  }
+
+  const articleParts = articleDirectory ? articleDirectory.split("/") : [];
+  const topDirectory = articleParts[0] ?? "";
+  const basename = path.posix.basename(cleanTarget);
+  const candidates = [
+    cleanTarget,
+    path.posix.join(articleDirectory, cleanTarget),
+    path.posix.join(articleDirectory, "imgs", basename),
+    topDirectory ? path.posix.join(topDirectory, "imgs", basename) : "",
+  ];
+  const matched = existingVaultRelativePath(sourceRoot, candidates);
+  return matched ? `/obsidian-assets/${encodeURI(matched)}` : target;
+}
+
+function transformObsidianLinks(content, articleDirectory, sourceRoot) {
   return content
     .replace(/!\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g, (_, target) => {
-      const cleanTarget = target.replace(/^\/+/, "");
-      const assetPath = cleanTarget.includes("/")
-        ? path.posix.join(articleDirectory, cleanTarget)
-        : path.posix.join(articleDirectory, "imgs", cleanTarget);
-      return `![${path.basename(cleanTarget)}](/obsidian-assets/${encodeURI(assetPath)})`;
+      const cleanTarget = target.replace(/^\/+/, "").replace(/\\/g, "/");
+      return `![${path.posix.basename(cleanTarget)}](${resolveAssetPath(cleanTarget, articleDirectory, sourceRoot)})`;
+    })
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, target) => {
+      return `![${alt}](${resolveAssetPath(target, articleDirectory, sourceRoot)})`;
     })
     .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, (_, target, label) => {
       return `[${label}](/blog/${encodeURI(slugify(path.basename(target)))}/)`;
@@ -161,7 +201,7 @@ async function writePost(file, sourceRoot) {
   };
 
   const articleDirectory = relativeParts.slice(0, -1).join("/");
-  const content = transformObsidianLinks(parsed.content.trim(), articleDirectory);
+  const content = transformObsidianLinks(parsed.content.trim(), articleDirectory, sourceRoot);
   await writeFile(outputPath, stringifyFrontmatter(`${content}\n`, data));
 }
 
@@ -184,6 +224,11 @@ async function main() {
   for (const sourceRoot of sourceRoots) {
     await collectFiles(sourceRoot, files);
   }
+  if (includeDirs.length) {
+    for (const directory of sharedAssetDirectories) {
+      await collectFiles(path.join(source, directory), files);
+    }
+  }
   let postCount = 0;
   let assetCount = 0;
 
@@ -192,7 +237,8 @@ async function main() {
     const relative = path.relative(source, file);
     const segments = relative.split(path.sep);
     const isMarkdownAssetDraft =
-      ext === ".md" && segments.some((segment) => segment === "imgs" || segment === "prompts");
+      ext === ".md" &&
+      segments.some((segment) => segment === "assets" || segment === "imgs" || segment === "prompts");
 
     if (ext === ".md" && !isMarkdownAssetDraft) {
       await writePost(file, source);

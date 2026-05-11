@@ -586,6 +586,12 @@ select {
   margin: 0 0 27.2px;
 }
 
+.post-body hr {
+  margin: 42px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
 .post-body ul,
 .post-body ol {
   margin: 0 0 27.2px;
@@ -594,6 +600,35 @@ select {
 
 .post-body li {
   margin: 0 0 8px;
+}
+
+.post-body table {
+  display: block;
+  width: 100%;
+  margin: 0 0 27.2px;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 15px;
+  line-height: 23px;
+}
+
+.post-body th,
+.post-body td {
+  min-width: 120px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.post-body th {
+  background: var(--panel);
+  color: #000000;
+  font-weight: 400;
+}
+
+.post-body td {
+  color: rgba(0, 0, 0, 0.78);
 }
 
 .post-body a {
