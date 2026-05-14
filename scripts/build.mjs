@@ -342,14 +342,18 @@ function postPage(post) {
         const lightboxContent = document.querySelector("[data-lightbox-content]");
         const lightboxImage = document.querySelector("[data-lightbox-image]");
         let lightboxScale = 1;
+        let lightboxMinScale = 1;
+        const lightboxMaxScale = 8;
+        const lightboxZoomSensitivity = 0.0045;
         let lightboxX = 0;
         let lightboxY = 0;
         let dragStart = null;
         const applyLightboxTransform = () => {
           lightboxContent.style.transform = "translate(" + lightboxX + "px, " + lightboxY + "px) scale(" + lightboxScale + ")";
         };
-        const resetLightboxTransform = () => {
-          lightboxScale = 1;
+        const resetLightboxTransform = (scale = 1, minScale = 1) => {
+          lightboxScale = scale;
+          lightboxMinScale = minScale;
           lightboxX = 0;
           lightboxY = 0;
           dragStart = null;
@@ -359,6 +363,17 @@ function postPage(post) {
           resetLightboxTransform();
           lightbox.hidden = false;
           document.documentElement.classList.add("has-lightbox");
+        };
+        const fitMermaidLightbox = () => {
+          const svg = lightboxContent.querySelector("svg");
+          if (!svg) return;
+          const rect = svg.getBoundingClientRect();
+          if (!rect.width || !rect.height) return;
+          const availableWidth = Math.max(320, window.innerWidth - 96);
+          const availableHeight = Math.max(240, window.innerHeight - 120);
+          const fitScale = Math.min(availableWidth / rect.width, availableHeight / rect.height);
+          const nextScale = Math.min(lightboxMaxScale, Math.max(0.12, fitScale * 0.92));
+          resetLightboxTransform(nextScale, 0.12);
         };
         const openImageLightbox = (src, alt = "") => {
           lightboxContent.replaceChildren(lightboxImage);
@@ -377,6 +392,7 @@ function postPage(post) {
           lightboxContent.replaceChildren(clone);
           lightboxContent.classList.add("is-mermaid");
           showLightbox();
+          requestAnimationFrame(fitMermaidLightbox);
         };
         const closeLightbox = () => {
           lightbox.hidden = true;
@@ -408,7 +424,10 @@ function postPage(post) {
           if (lightbox.hidden) return;
           event.preventDefault();
           const previousScale = lightboxScale;
-          const nextScale = Math.min(6, Math.max(1, lightboxScale * Math.exp(-event.deltaY * 0.002)));
+          const nextScale = Math.min(
+            lightboxMaxScale,
+            Math.max(lightboxMinScale, lightboxScale * Math.exp(-event.deltaY * lightboxZoomSensitivity))
+          );
           if (nextScale === previousScale) return;
           const rect = lightboxContent.getBoundingClientRect();
           const offsetX = event.clientX - (rect.left + rect.width / 2);
