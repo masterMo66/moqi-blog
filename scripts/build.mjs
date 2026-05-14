@@ -293,7 +293,9 @@ function postPage(post) {
       </div>
       <div class="image-lightbox" data-lightbox hidden>
         <button class="lightbox-close" type="button" aria-label="关闭图片预览" data-lightbox-close>×</button>
-        <img alt="" data-lightbox-image />
+        <div class="lightbox-content" data-lightbox-content>
+          <img alt="" data-lightbox-image />
+        </div>
       </div>
       <button class="back-to-top" type="button" aria-label="回到顶部" title="回到顶部" data-back-to-top><span aria-hidden="true"></span></button>
       <script>
@@ -337,13 +339,14 @@ function postPage(post) {
         syncScrollState();
 
         const lightbox = document.querySelector("[data-lightbox]");
+        const lightboxContent = document.querySelector("[data-lightbox-content]");
         const lightboxImage = document.querySelector("[data-lightbox-image]");
         let lightboxScale = 1;
         let lightboxX = 0;
         let lightboxY = 0;
         let dragStart = null;
         const applyLightboxTransform = () => {
-          lightboxImage.style.transform = "translate(" + lightboxX + "px, " + lightboxY + "px) scale(" + lightboxScale + ")";
+          lightboxContent.style.transform = "translate(" + lightboxX + "px, " + lightboxY + "px) scale(" + lightboxScale + ")";
         };
         const resetLightboxTransform = () => {
           lightboxScale = 1;
@@ -352,9 +355,35 @@ function postPage(post) {
           dragStart = null;
           applyLightboxTransform();
         };
+        const showLightbox = () => {
+          resetLightboxTransform();
+          lightbox.hidden = false;
+          document.documentElement.classList.add("has-lightbox");
+        };
+        const openImageLightbox = (src, alt = "") => {
+          lightboxContent.replaceChildren(lightboxImage);
+          lightboxContent.classList.remove("is-mermaid");
+          lightboxImage.hidden = false;
+          lightboxImage.src = src;
+          lightboxImage.alt = alt;
+          showLightbox();
+        };
+        const openMermaidLightbox = (source) => {
+          const svg = source.querySelector("svg");
+          if (!svg) return;
+          const clone = svg.cloneNode(true);
+          lightboxImage.hidden = true;
+          lightboxImage.removeAttribute("src");
+          lightboxContent.replaceChildren(clone);
+          lightboxContent.classList.add("is-mermaid");
+          showLightbox();
+        };
         const closeLightbox = () => {
           lightbox.hidden = true;
           lightboxImage.removeAttribute("src");
+          lightboxImage.hidden = false;
+          lightboxContent.replaceChildren(lightboxImage);
+          lightboxContent.classList.remove("is-mermaid", "is-dragging");
           document.documentElement.classList.remove("has-lightbox");
           resetLightboxTransform();
         };
@@ -367,20 +396,21 @@ function postPage(post) {
         });
         for (const trigger of document.querySelectorAll("[data-image-zoom]")) {
           trigger.addEventListener("click", () => {
-            lightboxImage.src = trigger.dataset.imageZoom;
-            lightboxImage.alt = trigger.dataset.imageAlt || "";
-            resetLightboxTransform();
-            lightbox.hidden = false;
-            document.documentElement.classList.add("has-lightbox");
+            openImageLightbox(trigger.dataset.imageZoom, trigger.dataset.imageAlt || "");
           });
         }
+        document.addEventListener("click", (event) => {
+          const mermaid = event.target.closest(".mermaid");
+          if (!mermaid || !document.querySelector(".post-body")?.contains(mermaid)) return;
+          openMermaidLightbox(mermaid);
+        });
         lightbox?.addEventListener("wheel", (event) => {
           if (lightbox.hidden) return;
           event.preventDefault();
           const previousScale = lightboxScale;
           const nextScale = Math.min(6, Math.max(1, lightboxScale * Math.exp(-event.deltaY * 0.002)));
           if (nextScale === previousScale) return;
-          const rect = lightboxImage.getBoundingClientRect();
+          const rect = lightboxContent.getBoundingClientRect();
           const offsetX = event.clientX - (rect.left + rect.width / 2);
           const offsetY = event.clientY - (rect.top + rect.height / 2);
           const ratio = nextScale / previousScale;
@@ -389,10 +419,10 @@ function postPage(post) {
           lightboxScale = nextScale;
           applyLightboxTransform();
         }, { passive: false });
-        lightboxImage?.addEventListener("pointerdown", (event) => {
+        lightboxContent?.addEventListener("pointerdown", (event) => {
           if (lightbox.hidden) return;
           event.preventDefault();
-          lightboxImage.setPointerCapture(event.pointerId);
+          lightboxContent.setPointerCapture(event.pointerId);
           dragStart = {
             pointerId: event.pointerId,
             clientX: event.clientX,
@@ -400,9 +430,9 @@ function postPage(post) {
             x: lightboxX,
             y: lightboxY,
           };
-          lightboxImage.classList.add("is-dragging");
+          lightboxContent.classList.add("is-dragging");
         });
-        lightboxImage?.addEventListener("pointermove", (event) => {
+        lightboxContent?.addEventListener("pointermove", (event) => {
           if (!dragStart || dragStart.pointerId !== event.pointerId) return;
           lightboxX = dragStart.x + event.clientX - dragStart.clientX;
           lightboxY = dragStart.y + event.clientY - dragStart.clientY;
@@ -411,10 +441,10 @@ function postPage(post) {
         const endLightboxDrag = (event) => {
           if (!dragStart || dragStart.pointerId !== event.pointerId) return;
           dragStart = null;
-          lightboxImage.classList.remove("is-dragging");
+          lightboxContent.classList.remove("is-dragging");
         };
-        lightboxImage?.addEventListener("pointerup", endLightboxDrag);
-        lightboxImage?.addEventListener("pointercancel", endLightboxDrag);
+        lightboxContent?.addEventListener("pointerup", endLightboxDrag);
+        lightboxContent?.addEventListener("pointercancel", endLightboxDrag);
       </script>
       ${
         rendered.hasMermaid
