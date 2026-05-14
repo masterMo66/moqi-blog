@@ -416,6 +416,36 @@ function postPage(post) {
         lightboxImage?.addEventListener("pointerup", endLightboxDrag);
         lightboxImage?.addEventListener("pointercancel", endLightboxDrag);
       </script>
+      ${
+        rendered.hasMermaid
+          ? `<script type="module">
+        import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: "loose",
+          theme: "base",
+          themeVariables: {
+            background: "#ffffff",
+            primaryColor: "#ffffff",
+            primaryBorderColor: "#dcdcdc",
+            primaryTextColor: "#000000",
+            lineColor: "#8a8a8a",
+            secondaryColor: "#f7f7f7",
+            tertiaryColor: "#ffffff",
+            fontFamily: "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+          },
+        });
+
+        try {
+          await mermaid.run({ querySelector: ".mermaid" });
+        } catch (error) {
+          console.error("Mermaid render failed", error);
+          document.documentElement.classList.add("has-mermaid-error");
+        }
+      </script>`
+          : ""
+      }
     </article>`,
   });
 }

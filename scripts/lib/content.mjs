@@ -180,6 +180,7 @@ export function renderMarkdown(markdown) {
   let code = [];
   let inCode = false;
   let codeLang = "";
+  let hasMermaid = false;
 
   const flushParagraph = () => {
     if (!paragraph.length) return;
@@ -216,9 +217,15 @@ export function renderMarkdown(markdown) {
 
   const flushCode = () => {
     if (!inCode) return;
-    html.push(
-      `<pre><code${codeLang ? ` class="language-${escapeHtml(codeLang)}"` : ""}>${escapeHtml(code.join("\n"))}</code></pre>`,
-    );
+    const language = codeLang.trim().toLowerCase();
+    if (language === "mermaid") {
+      hasMermaid = true;
+      html.push(`<pre class="mermaid">${escapeHtml(code.join("\n"))}</pre>`);
+    } else {
+      html.push(
+        `<pre><code${codeLang ? ` class="language-${escapeHtml(codeLang)}"` : ""}>${escapeHtml(code.join("\n"))}</code></pre>`,
+      );
+    }
     code = [];
     codeLang = "";
     inCode = false;
@@ -343,7 +350,7 @@ export function renderMarkdown(markdown) {
   flushOrderedList();
   flushQuote();
 
-  return { html: html.join("\n"), headings };
+  return { html: html.join("\n"), headings, hasMermaid };
 }
 
 function isMarkdownTableStart(line, nextLine) {
