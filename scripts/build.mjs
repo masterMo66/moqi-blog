@@ -239,7 +239,11 @@ function aboutPage() {
 }
 
 function readTime(content) {
-  const text = content.replace(/```[\s\S]*?```/g, "").replace(/!\[[^\]]*\]\([^)]+\)/g, "");
+  const text = content
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/^\s{0,3}\[[^\]]+\]:\s+.+$/gm, "")
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, "")
+    .replace(/!\[[^\]]*\]\[[^\]]*\]/g, "");
   const chineseChars = (text.match(/[\u4e00-\u9fff]/g) ?? []).length;
   const latinWords = (text.match(/[A-Za-z0-9]+/g) ?? []).length;
   const minutes = Math.max(1, Math.round((chineseChars + latinWords) / 420));

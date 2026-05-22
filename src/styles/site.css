@@ -700,6 +700,39 @@ select {
 
 .post-body a {
   border-bottom: 1px solid var(--line-strong);
+  box-shadow: inset 0 -0.12em 0 rgba(0, 0, 0, 0.04);
+  color: inherit;
+  text-decoration: none;
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.post-body a:hover {
+  border-bottom-color: #000000;
+  background: rgba(0, 0, 0, 0.035);
+  box-shadow: inset 0 -0.35em 0 rgba(0, 0, 0, 0.06);
+}
+
+.post-body a.reference-link {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 0.08em;
+  padding: 0.06em 0.42em;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow: none;
+  color: rgba(0, 0, 0, 0.72);
+  font-size: 0.82em;
+  font-weight: 400;
+  line-height: 1.55;
+  vertical-align: 0.08em;
+}
+
+.post-body a.reference-link:hover {
+  border-color: #000000;
+  background: #ffffff;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+  color: #000000;
 }
 
 .image-zoom,

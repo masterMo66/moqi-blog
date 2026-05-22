@@ -168,7 +168,7 @@ export function markdownToHtml(markdown) {
 }
 
 export function renderMarkdown(markdown) {
-  const lines = markdown.split(/\r?\n/);
+  const { lines, references } = extractReferenceDefinitions(markdown.split(/\r?\n/));
   const html = [];
   const headings = [];
   const headingSlugs = new Map();
@@ -184,19 +184,19 @@ export function renderMarkdown(markdown) {
 
   const flushParagraph = () => {
     if (!paragraph.length) return;
-    html.push(`<p>${inlineMarkdown(paragraph.join(" "))}</p>`);
+    html.push(`<p>${inlineMarkdown(paragraph.join(" "), references)}</p>`);
     paragraph = [];
   };
 
   const flushList = () => {
     if (!list.length) return;
-    html.push(`<ul>${list.map((item) => `<li>${inlineMarkdown(item)}</li>`).join("")}</ul>`);
+    html.push(`<ul>${list.map((item) => `<li>${inlineMarkdown(item, references)}</li>`).join("")}</ul>`);
     list = [];
   };
 
   const flushOrderedList = () => {
     if (!orderedList.length) return;
-    html.push(`<ol>${orderedList.map((item) => `<li>${inlineMarkdown(item)}</li>`).join("")}</ol>`);
+    html.push(`<ol>${orderedList.map((item) => `<li>${inlineMarkdown(item, references)}</li>`).join("")}</ol>`);
     orderedList = [];
   };
 
@@ -208,7 +208,7 @@ export function renderMarkdown(markdown) {
       .split(/\n{2,}/)
       .map((item) => item.trim())
       .filter(Boolean)
-      .map((item) => `<p>${inlineMarkdown(item.replace(/\n/g, " "))}</p>`)
+      .map((item) => `<p>${inlineMarkdown(item.replace(/\n/g, " "), references)}</p>`)
       .join("");
     html.push(`<blockquote${className}>${paragraphs}</blockquote>`);
     quote = [];
@@ -285,7 +285,7 @@ export function renderMarkdown(markdown) {
       }
 
       index -= 1;
-      html.push(renderMarkdownTable(tableLines));
+      html.push(renderMarkdownTable(tableLines, references));
       continue;
     }
 
@@ -318,7 +318,7 @@ export function renderMarkdown(markdown) {
       if (level >= 2 && level <= 3) {
         headings.push({ id, level, text });
       }
-      html.push(`<h${level} id="${escapeHtml(id)}">${inlineMarkdown(heading[2])}</h${level}>`);
+      html.push(`<h${level} id="${escapeHtml(id)}">${inlineMarkdown(heading[2], references)}</h${level}>`);
       continue;
     }
 
@@ -401,7 +401,7 @@ function tableAlignment(separatorCell) {
   return "";
 }
 
-function renderMarkdownTable(tableLines) {
+function renderMarkdownTable(tableLines, references = new Map()) {
   const headers = splitMarkdownTableRow(tableLines[0]);
   const alignments = splitMarkdownTableRow(tableLines[1]).map(tableAlignment);
   const columnCount = headers.length;
@@ -409,13 +409,13 @@ function renderMarkdownTable(tableLines) {
   const alignmentAttribute = (index) =>
     alignments[index] ? ` style="text-align: ${alignments[index]}"` : "";
   const thead = headers
-    .map((cell, index) => `<th${alignmentAttribute(index)}>${inlineMarkdown(cell)}</th>`)
+    .map((cell, index) => `<th${alignmentAttribute(index)}>${inlineMarkdown(cell, references)}</th>`)
     .join("");
   const tbody = rows
     .map(
       (row) =>
         `<tr>${row
-          .map((cell, index) => `<td${alignmentAttribute(index)}>${inlineMarkdown(cell)}</td>`)
+          .map((cell, index) => `<td${alignmentAttribute(index)}>${inlineMarkdown(cell, references)}</td>`)
           .join("")}</tr>`,
     )
     .join("");
@@ -428,14 +428,120 @@ function normalizeTableCells(cells, columnCount) {
   return [...cells, ...Array.from({ length: columnCount - cells.length }, () => "")];
 }
 
-function inlineMarkdown(value) {
+function extractReferenceDefinitions(lines) {
+  const references = new Map();
+  const contentLines = [];
+  let inCode = false;
+
+  for (const line of lines) {
+    if (/^```/.test(line)) {
+      inCode = !inCode;
+      contentLines.push(line);
+      continue;
+    }
+
+    if (inCode) {
+      contentLines.push(line);
+      continue;
+    }
+
+    const definition = line.match(/^\s{0,3}\[([^\]]+)\]:\s*(.+)$/);
+    if (!definition) {
+      contentLines.push(line);
+      continue;
+    }
+
+    const reference = parseReferenceDefinition(definition[2]);
+    if (!reference) {
+      contentLines.push(line);
+      continue;
+    }
+
+    references.set(normalizeReferenceLabel(definition[1]), reference);
+  }
+
+  return { lines: contentLines, references };
+}
+
+function parseReferenceDefinition(value) {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  let href = "";
+  let rest = "";
+
+  if (trimmed.startsWith("<")) {
+    const end = trimmed.indexOf(">");
+    if (end === -1) return null;
+    href = trimmed.slice(1, end).trim();
+    rest = trimmed.slice(end + 1).trim();
+  } else {
+    const destination = trimmed.match(/^(\S+)(?:\s+([\s\S]+))?$/);
+    if (!destination) return null;
+    href = destination[1].trim();
+    rest = destination[2]?.trim() ?? "";
+  }
+
+  if (!href) return null;
+
+  return {
+    href,
+    title: rest ? normalizeReferenceTitle(rest) : "",
+  };
+}
+
+function normalizeReferenceTitle(value) {
+  const trimmed = value.trim();
+  const match = trimmed.match(/^"([^"]*)"$/) ?? trimmed.match(/^'([^']*)'$/) ?? trimmed.match(/^\(([^)]*)\)$/);
+  return match ? match[1] : trimmed;
+}
+
+function normalizeReferenceLabel(value) {
+  return decodeEscapedInline(value).trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function decodeEscapedInline(value) {
+  return String(value)
+    .replaceAll("&amp;", "&")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#39;", "'");
+}
+
+function renderLink(label, href, title = "", className = "") {
+  const classAttribute = className ? ` class="${escapeHtml(className)}"` : "";
+  const titleAttribute = title ? ` title="${escapeHtml(title)}"` : "";
+  return `<a${classAttribute} href="${escapeHtml(href)}"${titleAttribute}>${label}</a>`;
+}
+
+function renderImageZoom(alt, src) {
+  return `<button class="image-zoom" type="button" data-image-zoom="${escapeHtml(src)}" data-image-alt="${alt}" aria-label="放大图片"><img src="${escapeHtml(src)}" alt="${alt}" loading="lazy" /></button>`;
+}
+
+function referenceLink(label, id, references) {
+  const reference = references.get(normalizeReferenceLabel(id || label));
+  if (!reference) return null;
+  return renderLink(label, reference.href, reference.title, "reference-link");
+}
+
+function referenceImage(alt, id, references) {
+  const reference = references.get(normalizeReferenceLabel(id || alt));
+  if (!reference) return null;
+  return renderImageZoom(alt, reference.href);
+}
+
+function inlineMarkdown(value, references = new Map()) {
   return escapeHtml(value)
     .replace(/&lt;br\s*\/?&gt;/gi, "<br />")
+    .replace(/!\[([^\]]*)\]\[([^\]]*)\]/g, (match, alt, id) => referenceImage(alt, id, references) ?? match)
     .replace(
       /!\[([^\]]*)\]\(([^)]+)\)/g,
-      '<button class="image-zoom" type="button" data-image-zoom="$2" data-image-alt="$1" aria-label="放大图片"><img src="$2" alt="$1" loading="lazy" /></button>',
+      (_, alt, src) => renderImageZoom(alt, decodeEscapedInline(src)),
     )
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+    .replace(/\(\[([^\]]+)\]\[([^\]]*)\]\)/g, (match, label, id) => referenceLink(label, id, references) ?? match)
+    .replace(/\[([^\]]+)\]\[([^\]]*)\]/g, (match, label, id) => referenceLink(label, id, references) ?? match)
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => renderLink(label, decodeEscapedInline(href)))
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/`([^`]+)`/g, "<code>$1</code>");
 }
@@ -443,7 +549,9 @@ function inlineMarkdown(value) {
 function stripInlineMarkdown(value) {
   return String(value)
     .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, "$1")
+    .replace(/!\[([^\]]*)\]\[([^\]]*)\]/g, "$1")
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1")
+    .replace(/\[([^\]]+)\]\[([^\]]*)\]/g, "$1")
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/`([^`]+)`/g, "$1")
     .trim();
