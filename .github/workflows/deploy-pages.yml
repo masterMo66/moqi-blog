@@ -29,6 +29,11 @@ jobs:
         with:
           node-version: 24
 
+      - name: Install dependencies and test
+        run: |
+          npm ci
+          npm test
+
       - name: Configure Obsidian deploy key
         run: |
           mkdir -p ~/.ssh

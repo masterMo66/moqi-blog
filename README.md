@@ -5,8 +5,11 @@
 ## 本地开发
 
 ```bash
+npm ci
 npm run dev
 ```
+
+`$...$` 行内公式和独立行的 `$$...$$` 数学公式（单行或多行）通过 KaTeX 在构建时渲染，样式和字体随网站一起发布。运行 `npm test` 检查公式与 Markdown 兼容性。
 
 ## GitHub Pages 部署
 

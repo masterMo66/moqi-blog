@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import katex from "katex";
 
 export function slugify(input) {
   return input
@@ -253,6 +254,33 @@ export function renderMarkdown(markdown) {
       continue;
     }
 
+    // Parse display math before Markdown can interpret TeX as lists or tables.
+    // Only consume a block when a closing delimiter exists.
+    const mathStart = line.match(/^\s*\$\$(.*)$/);
+    if (mathStart) {
+      const mathLines = [mathStart[1]];
+      let end = index;
+      while (!/(?<!\\)\$\$\s*$/.test(mathLines.at(-1)) && end + 1 < lines.length) {
+        end += 1;
+        mathLines.push(lines[end]);
+      }
+      if (/(?<!\\)\$\$\s*$/.test(mathLines.at(-1))) {
+        flushParagraph();
+        flushList();
+        flushOrderedList();
+        flushQuote();
+        const expression = mathLines.join("\n").replace(/\$\$\s*$/, "").trim();
+        html.push(katex.renderToString(expression, {
+          displayMode: true,
+          throwOnError: false,
+          strict: "ignore",
+          trust: false,
+        }));
+        index = end;
+        continue;
+      }
+    }
+
     if (!line.trim()) {
       flushParagraph();
       flushList();
@@ -376,7 +404,7 @@ function splitMarkdownTableRow(line) {
 
   for (const char of trimmed) {
     if (escaped) {
-      cell += char;
+      cell += char === "|" ? char : `\\${char}`;
       escaped = false;
     } else if (char === "\\") {
       escaped = true;
@@ -532,7 +560,19 @@ function referenceImage(alt, id, references) {
 }
 
 function inlineMarkdown(value, references = new Map()) {
-  return escapeHtml(value)
+  const protectedHtml = [];
+  const protect = (html) => `\uE000${protectedHtml.push(html) - 1}\uE001`;
+  const source = escapeHtml(value)
+    .replace(/`([^`]+)`/g, (_, code) => protect(`<code>${code}</code>`))
+    .replace(/(?<![\\$])\$(?![\s$])((?:\\.|[^$\\\n])+?)(?<!\s)\$(?![\d$])/g, (_, expression) =>
+      protect(katex.renderToString(decodeEscapedInline(expression), {
+        displayMode: false,
+        throwOnError: false,
+        strict: "ignore",
+        trust: false,
+      })),
+    );
+  return source
     .replace(/&lt;br\s*\/?&gt;/gi, "<br />")
     .replace(/!\[([^\]]*)\]\[([^\]]*)\]/g, (match, alt, id) => referenceImage(alt, id, references) ?? match)
     .replace(
@@ -543,7 +583,7 @@ function inlineMarkdown(value, references = new Map()) {
     .replace(/\[([^\]]+)\]\[([^\]]*)\]/g, (match, label, id) => referenceLink(label, id, references) ?? match)
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => renderLink(label, decodeEscapedInline(href)))
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/`([^`]+)`/g, "<code>$1</code>");
+    .replace(/\uE000(\d+)\uE001/g, (_, index) => protectedHtml[Number(index)]);
 }
 
 function stripInlineMarkdown(value) {

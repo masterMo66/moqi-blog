@@ -27,6 +27,7 @@ function pageShell({ title, description, current, body }) {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="${escapeHtml(description)}" />
     <title>${escapeHtml(title)}</title>
+    <link rel="stylesheet" href="/styles/katex/katex.min.css" />
     <link rel="stylesheet" href="/styles/site.css" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%23111111'/%3E%3C/svg%3E" />
   </head>
@@ -514,6 +515,10 @@ async function main() {
   await rm(distDir, { recursive: true, force: true });
   await mkdir(path.join(distDir, "styles"), { recursive: true });
   await cp(stylesPath, path.join(distDir, "styles/site.css"));
+  const katexStyles = path.join(distDir, "styles/katex");
+  await mkdir(katexStyles, { recursive: true });
+  await cp(path.join(root, "node_modules/katex/dist/katex.min.css"), path.join(katexStyles, "katex.min.css"));
+  await cp(path.join(root, "node_modules/katex/dist/fonts"), path.join(katexStyles, "fonts"), { recursive: true });
 
   if (existsSync(path.join(root, "public"))) {
     await cp(path.join(root, "public"), distDir, { recursive: true });
