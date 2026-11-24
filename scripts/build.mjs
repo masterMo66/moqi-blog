@@ -21,17 +21,36 @@ function pageShell({ title, description, current, body }) {
   ];
 
   return `<!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="gate-locked">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="${escapeHtml(description)}" />
     <title>${escapeHtml(title)}</title>
+    <style>.gate-locked .site-header,.gate-locked main{display:none!important}html:not(.gate-locked) #login-gate{display:none!important}</style>
+    <link rel="stylesheet" href="/auth/gate.css" />
+    <script type="module" src="/auth/gate.mjs"></script>
     <link rel="stylesheet" href="/styles/katex/katex.min.css" />
     <link rel="stylesheet" href="/styles/site.css" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%23111111'/%3E%3C/svg%3E" />
   </head>
   <body>
+    <section id="login-gate" aria-labelledby="login-title">
+      <div class="login-card">
+        <p class="login-brand">MOQILOG</p>
+        <h1 id="login-title">欢迎回来</h1>
+        <p class="login-intro">登录后继续阅读。</p>
+        <form id="login-form" method="post">
+          <label for="login-username">用户名</label>
+          <input id="login-username" name="username" autocomplete="username" required autocapitalize="none" spellcheck="false" />
+          <label for="login-password">密码</label>
+          <input id="login-password" name="password" type="password" autocomplete="current-password" required />
+          <p id="login-error" role="status" aria-live="polite"></p>
+          <button type="submit" id="login-submit" disabled>正在准备…</button>
+        </form>
+        <noscript>请启用 JavaScript 后登录。</noscript>
+      </div>
+    </section>
     <header class="site-header">
       <a class="brand" href="/" aria-label="MOQILOG 首页">MOQILOG</a>
       <nav class="site-nav" aria-label="主导航">
@@ -43,6 +62,7 @@ function pageShell({ title, description, current, body }) {
           .join("")}
       </nav>
       <div class="header-tools" aria-label="页面工具">
+        <button type="button" id="logout-button">退出登录</button>
         <span class="lang-muted">EN</span>
         <span class="divider">/</span>
         <span>ZH</span>
